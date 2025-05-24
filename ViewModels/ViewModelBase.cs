@@ -1,6 +1,8 @@
-﻿namespace MyApp.ViewModels;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 
-public class ViewModelBase
+namespace MyApp.ViewModels
 {
-    
+    public abstract class ViewModelBase : ObservableObject
+    {
+    }
 }

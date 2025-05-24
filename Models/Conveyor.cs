@@ -2,125 +2,158 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using IT_TASK3.Models;
+using Avalonia;
 
-namespace IT_TASK4.Models
+namespace MyApp.Models
 {
     public class Conveyor
     {
-        private readonly Random _random = new Random();
-        private int _materials = 10;
-        private bool _isBroken = false;
-        private bool _isRunning = false;
-        private CancellationTokenSource _cts;
+        public event Action<BicyclePart>? PartAdded;
+        public event Action<BicyclePart>? PartRemoved;
+        public event Action? Broken;
+        public event Action? Fixed;
+        public event Action? MaterialsEmpty;
+        public event Action<Bicycle>? BicycleAssembled;
 
-        public event EventHandler<Detail> DetailProduced;
-        public event EventHandler<string> ConveyorStatusChanged;
-        public event EventHandler MaterialsEmpty;
-        public event EventHandler ConveyorBroken;
+        private readonly List<BicyclePart> _parts = new();
+        private readonly Random _random = new();
+        private bool _isRunning;
+        private bool _isBroken;
+        private int _wheelCount;
+        private int _frameCount;
+        private int _handlebarCount;
+        private readonly object _lock = new();
 
-        public int Materials => _materials;
+        public IReadOnlyList<BicyclePart> Parts => _parts;
         public bool IsBroken => _isBroken;
         public bool IsRunning => _isRunning;
+        public Rect Bounds { get; set; }
+        public Rect CollectionBox { get; set; }
 
         public void Start()
         {
             if (_isRunning) return;
             
             _isRunning = true;
-            _cts = new CancellationTokenSource();
-            Task.Run(() => ProductionCycle(_cts.Token));
-            OnConveyorStatusChanged("Conveyor: Started");
+            Task.Run(() => RunConveyor());
         }
 
         public void Stop()
         {
             _isRunning = false;
-            _cts?.Cancel();
-            OnConveyorStatusChanged("Conveyor: Stopped");
         }
 
-        public void AddMaterials(int quantity)
+        private async Task RunConveyor()
         {
-            _materials += quantity;
-            OnConveyorStatusChanged($"Conveyor: Added {quantity} materials. Total: {_materials}");
-        }
-
-        private async Task ProductionCycle(CancellationToken token)
-        {
-            while (_isRunning && !token.IsCancellationRequested)
+            while (_isRunning)
             {
                 if (_isBroken)
                 {
-                    OnConveyorStatusChanged("Conveyor: Waiting for repair...");
                     await Task.Delay(1000);
                     continue;
                 }
 
-                if (_materials <= 0)
+                if (_random.Next(100) == 0)
                 {
-                    OnMaterialsEmpty();
-                    OnConveyorStatusChanged("Conveyor: Waiting for materials...");
+                    _isBroken = true;
+                    Broken?.Invoke();
+                    continue;
+                }
+
+                if (_parts.Count == 0)
+                {
+                    MaterialsEmpty?.Invoke();
                     await Task.Delay(1000);
                     continue;
                 }
 
-                try
+                lock (_lock)
                 {
-                    await ProduceDetail(token);
-                    await Task.Delay(500, token); // Задержка между производством деталей
+                    foreach (var part in _parts)
+                    {
+                        var angle = Math.Atan2(part.Position.Y - Bounds.Center.Y, part.Position.X - Bounds.Center.X);
+                        angle += 0.05;
+                        
+                        var radius = Math.Min(Bounds.Width, Bounds.Height) / 2 * 0.8;
+                        part.Position = new Point(
+                            Bounds.Center.X + radius * Math.Cos(angle),
+                            Bounds.Center.Y + radius * Math.Sin(angle));
+                        
+                        if (CollectionBox.Contains(part.Position))
+                        {
+                            TryCollectPart(part);
+                        }
+                    }
                 }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
+
+                await Task.Delay(50);
             }
         }
 
-        private async Task ProduceDetail(CancellationToken token)
+        private void TryCollectPart(BicyclePart part)
         {
-            _materials--;
-            OnConveyorStatusChanged($"Conveyor: Producing detail. Materials left: {_materials}");
-            
-            // Имитация времени производства
-            await Task.Delay(800, token);
+            bool shouldRemove = false;
 
-            // 10% вероятность поломки
-            if (_random.Next(0, 100) < 10)
+            switch (part.Type)
             {
-                _isBroken = true;
-                OnConveyorBroken();
-                return;
+                case PartType.Wheel when _wheelCount < 2:
+                    _wheelCount++;
+                    shouldRemove = true;
+                    break;
+                case PartType.Frame when _frameCount == 0:
+                    _frameCount++;
+                    shouldRemove = true;
+                    break;
+                case PartType.Handlebar when _handlebarCount == 0:
+                    _handlebarCount++;
+                    shouldRemove = true;
+                    break;
             }
 
-            var detail = new Detail();
-            OnDetailProduced(detail);
+            if (shouldRemove)
+            {
+                RemovePart(part);
+            }
+
+            if (_wheelCount == 2 && _frameCount == 1 && _handlebarCount == 1)
+            {
+                var bicycle = new Bicycle();
+                bicycle.AddPart(new BicyclePart(PartType.Wheel));
+                bicycle.AddPart(new BicyclePart(PartType.Wheel));
+                bicycle.AddPart(new BicyclePart(PartType.Frame));
+                bicycle.AddPart(new BicyclePart(PartType.Handlebar));
+                
+                BicycleAssembled?.Invoke(bicycle);
+                _wheelCount = 0;
+                _frameCount = 0;
+                _handlebarCount = 0;
+            }
         }
 
-        public void FixConveyor()
+        public void AddPart(BicyclePart part)
+        {
+            lock (_lock)
+            {
+                _parts.Add(part);
+                PartAdded?.Invoke(part);
+            }
+        }
+
+        public void RemovePart(BicyclePart part)
+        {
+            lock (_lock)
+            {
+                if (_parts.Remove(part))
+                {
+                    PartRemoved?.Invoke(part);
+                }
+            }
+        }
+
+        public void Fix()
         {
             _isBroken = false;
-            OnConveyorStatusChanged("Conveyor: Fixed and ready to work");
-        }
-
-        protected virtual void OnDetailProduced(Detail detail)
-        {
-            DetailProduced?.Invoke(this, detail);
-        }
-
-        protected virtual void OnConveyorStatusChanged(string status)
-        {
-            ConveyorStatusChanged?.Invoke(this, status);
-        }
-
-        protected virtual void OnMaterialsEmpty()
-        {
-            MaterialsEmpty?.Invoke(this, EventArgs.Empty);
-        }
-
-        protected virtual void OnConveyorBroken()
-        {
-            ConveyorBroken?.Invoke(this, EventArgs.Empty);
+            Fixed?.Invoke();
         }
     }
 }

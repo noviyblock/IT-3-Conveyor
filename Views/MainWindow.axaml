@@ -1,20 +1,75 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:MyApp.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        xmlns:vm="using:MyApp.ViewModels"
+        xmlns:models="using:MyApp.Models"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
         x:Class="MyApp.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="MyApp">
+        x:DataType="vm:MainViewModel"
+        Title="Bicycle Conveyor Simulation">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
+        <vm:MainViewModel/>
     </Design.DataContext>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Grid RowDefinitions="Auto,*,Auto,100" ColumnDefinitions="*,200" Margin="10">
+        <!-- Controls -->
+        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10">
+            <Button Command="{Binding StartConveyorCommand}" Content="Start Conveyor"/>
+            <Button Command="{Binding StopConveyorCommand}" Content="Stop Conveyor"/>
+            <Button Command="{Binding AddRandomPartCommand}" Content="Add Random Part"/>
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="10 0"/>
+        </StackPanel>
 
+        <!-- Conveyor Area -->
+        <Canvas x:Name="ConveyorCanvas" Grid.Row="1" Grid.Column="0" Background="#f0f0f0">
+            <!-- Collection Box -->
+            <Rectangle x:Name="CollectionBox" Width="100" Height="80" Fill="LightBlue" Opacity="0.5"/>
+            <StackPanel x:Name="CollectionInfo" Orientation="Vertical" Spacing="5">
+                <TextBlock Text="{Binding WheelCount, StringFormat='Wheels: {0}/2'}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding FrameCount, StringFormat='Frame: {0}/1'}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding HandlebarCount, StringFormat='Handlebars: {0}/1'}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding AssembledBicyclesCount, StringFormat='Assembled: {0}'}" FontWeight="Bold"/>
+            </StackPanel>
+        </Canvas>
+
+        <!-- Parts Panel -->
+        <Border Grid.Row="1" Grid.Column="1" BorderBrush="Gray" BorderThickness="1" Padding="5">
+            <StackPanel>
+                <TextBlock Text="Available Parts" FontWeight="Bold" Margin="0 0 0 10"/>
+                <ItemsControl ItemsSource="{Binding AvailableParts}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="models:BicyclePart">
+                            <Border Background="LightGray" Margin="5" Padding="10" CornerRadius="5">
+                                <TextBlock Text="{Binding Type}"/>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Status -->
+        <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="20">
+            <TextBlock Text="{Binding IsConveyorBroken, StringFormat='Conveyor Broken: {0}'}"/>
+            <TextBlock Text="{Binding IsMechanicBusy, StringFormat='Mechanic Busy: {0}'}"/>
+        </StackPanel>
+
+        <!-- Assembled Bicycles -->
+        <Border Grid.Row="3" Grid.ColumnSpan="2" BorderBrush="Gray" BorderThickness="0,1,0,0" Padding="5">
+            <StackPanel>
+                <TextBlock Text="Assembled Bicycles:" FontWeight="Bold" Margin="0 0 0 5"/>
+                <ItemsControl ItemsSource="{Binding AssembledBicycles}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="models:Bicycle">
+                            <Border Background="LightGreen" Margin="2" Padding="10" CornerRadius="5">
+                                <TextBlock Text="{Binding}"/>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>
